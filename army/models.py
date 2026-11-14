@@ -19,9 +19,23 @@ class Person(models.Model):
     class Meta:
         ordering = ['id']
 
+    RANK_CODES = {'General': 'GEN', 'Lieutenant': 'LT', 'Sergeant': 'SGT', 'Private': 'PVT'}
+
     @property
     def is_drafted(self):
         return self.drafted_at is not None
+
+    @property
+    def rank_code(self):
+        if not self.rank:
+            return ''
+        return self.RANK_CODES.get(self.rank, self.rank[:3].upper())
+
+    @property
+    def health_pct(self):
+        if not self.initial_health:
+            return 0
+        return max(0, min(100, round(self.health * 100 / self.initial_health)))
 
     def __str__(self):
         return f'{self.name} (#{self.id})'
