@@ -1,8 +1,14 @@
-<tr>
-  <td>{{ b.kind }}</td><td>{{ b.number }}</td>
-  <td><span class="badge {{ b.status }}">{{ b.status }}</span></td>
-  <td>{{ b.item_count|default_if_none:"" }}</td>
-  <td>{% if b.is_last %}last{% else %}{{ b.next_batch|default_if_none:"" }}{% endif %}</td>
-  <td>{{ b.attempts }}</td>
-  <td class="muted">{{ b.error|truncatechars:80 }}</td>
-</tr>
+<div class="batch-row">
+  <div class="batch-label"><b>{{ label }}</b><span>{{ path }}</span></div>
+  <div class="cells">
+    {% for b in summary.batches %}
+      <span class="cell {{ b.status }}" title="Batch {{ b.number }} · {{ b.status }}{% if b.item_count is not None %} · {{ b.item_count }} items{% endif %}{% if b.attempts %} · {{ b.attempts }} retries{% endif %}{% if b.error %} · {{ b.error|truncatechars:140 }}{% endif %}">{{ b.number }}{% if b.attempts and b.status != 'processed' %}<sup>{{ b.attempts }}</sup>{% endif %}</span>
+    {% empty %}
+      <span class="dim" style="font-size:13px">Not started</span>
+    {% endfor %}
+  </div>
+  <div class="batch-stats">
+    {{ summary.processed }}/{{ summary.total }} processed<br>
+    {{ summary.retries }} retr{{ summary.retries|pluralize:"y,ies" }}
+  </div>
+</div>

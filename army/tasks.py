@@ -108,6 +108,10 @@ def register_people(self):
 
 # --------------------------------------------------------------------------- 2. draft (batches)
 
+def batches_in_progress(kind):
+    return DownloadBatch.objects.filter(kind=kind).exclude(status__in=DownloadBatch.FINISHED).exists()
+
+
 @shared_task
 def start_draft():
     DownloadBatch.objects.filter(kind=DownloadBatch.DRAFT).delete()
@@ -223,16 +227,25 @@ def save_fight_batch(self, number, fights):
 
 @shared_task
 def start_simulation():
-    """Launch one background task per fight; the worker pool runs them in parallel."""
-    fight_ids = list(Fight.objects.exclude(status=Fight.DONE).values_list('id', flat=True))
-    group(simulate_fight.s(fid) for fid in fight_ids).apply_async()
-    return len(fight_ids)
+    """Launch one background task per fight; the worker pool runs them in parallel.
+
+    Each fight is claimed (pending -> running) with a conditional UPDATE before its task is queued,
+    so pressing the button twice never queues the same fight twice.
+    """
+    queued = []
+    for fight_id in Fight.objects.filter(status=Fight.PENDING).values_list('id', flat=True):
+        if Fight.objects.filter(pk=fight_id, status=Fight.PENDING).update(status=Fight.RUNNING):
+            queued.append(fight_id)
+    if queued:
+        group(simulate_fight.s(fid) for fid in queued).apply_async()
+    return len(queued)
 
 
 @shared_task(bind=True, **DB_RETRY)
 def simulate_fight(self, fight_id):
+    if Fight.objects.filter(pk=fight_id, status=Fight.DONE).exists():
+        return fight_id
     Fight.objects.filter(pk=fight_id, started_at__isnull=True).update(started_at=timezone.now())
-    Fight.objects.filter(pk=fight_id).exclude(status=Fight.DONE).update(status=Fight.RUNNING)
 
     events = list(FightEvent.objects.filter(fight_id=fight_id, applied=False).order_by('step'))
     for event in events:
@@ -271,6 +284,10 @@ def finish_fight(fight_id):
     Fight.objects.filter(pk=fight_id).update(
         status=Fight.DONE, blue_damage_dealt=blue, red_damage_dealt=red,
         winner_id=winner, finished_at=timezone.now())
+
+
+def simulation_in_progress():
+    return Fight.objects.filter(status=Fight.RUNNING).exists()
 
 
 def reset_simulation():

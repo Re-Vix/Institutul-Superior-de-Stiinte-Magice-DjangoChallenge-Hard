@@ -1,48 +1,184 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>{% block title %}Django War Simulator{% endblock %}</title>
-  {% if auto_refresh %}<meta http-equiv="refresh" content="2">{% endif %}
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Deadlock · War Simulator{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; background: #f4f5f7; color: #1d2330; }
-    header { background: #1d2330; color: #fff; padding: 12px 24px; display: flex; gap: 24px; align-items: center; }
-    header a { color: #cfd6e4; text-decoration: none; }
-    header a:hover { color: #fff; }
-    header strong { margin-right: auto; }
-    main { max-width: 1150px; margin: 24px auto; padding: 0 16px; }
-    .card { background: #fff; border-radius: 8px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-    .stats { display: flex; gap: 12px; flex-wrap: wrap; }
-    .stat { background: #fff; border-radius: 8px; padding: 12px 16px; min-width: 130px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-    .stat b { display: block; font-size: 24px; }
-    table { border-collapse: collapse; width: 100%; font-size: 14px; }
-    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e6e8ee; }
-    th { color: #5b6476; font-weight: 600; }
-    button { background: #2f6fec; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; cursor: pointer; font-size: 14px; }
-    button.secondary { background: #6b7385; }
-    form { display: inline; }
-    .blue { color: #2f6fec; font-weight: 600; }
-    .red { color: #d33a3a; font-weight: 600; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; background: #e6e8ee; }
-    .badge.done, .badge.processed { background: #d8f3e0; color: #17733a; }
-    .badge.running, .badge.downloading, .badge.downloaded, .badge.queued { background: #fff2cc; color: #8a6100; }
-    .badge.retrying, .badge.failed { background: #fde0e0; color: #a02020; }
-    .msg { background: #e5efff; border-left: 4px solid #2f6fec; padding: 8px 12px; margin-bottom: 12px; }
-    .bar { background: #e6e8ee; border-radius: 4px; height: 8px; width: 120px; display: inline-block; vertical-align: middle; }
-    .bar span { display: block; height: 8px; border-radius: 4px; background: #2fa35a; }
-    .muted { color: #6b7385; font-size: 13px; }
+    :root {
+      --bg: #0a0c0f; --panel: #11151a; --panel-2: #161b21; --line: #212830; --line-2: #2b333d;
+      --text: #e9e7e1; --muted: #8e96a3; --dim: #5b6470;
+      --amber: #f2b33d; --amber-soft: rgba(242, 179, 61, .12);
+      --blue: #4e8fff; --blue-soft: rgba(78, 143, 255, .13);
+      --red: #ff5d55; --red-soft: rgba(255, 93, 85, .13);
+      --green: #3fcf8e; --green-soft: rgba(63, 207, 142, .12);
+      --head: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+      --body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); }
+    body {
+      margin: 0; color: var(--text); font: 14px/1.5 var(--body); min-height: 100vh;
+      background:
+        linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px) 0 0 / 48px 48px,
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px) 0 0 / 48px 48px,
+        radial-gradient(1200px 500px at 70% -10%, rgba(242,179,61,.06), transparent 60%),
+        var(--bg);
+    }
+    a { color: inherit; }
+    .mono { font-family: var(--mono); }
+    .muted { color: var(--muted); }
+    .dim { color: var(--dim); }
+
+    /* ---------- top bar ---------- */
+    .topbar {
+      position: sticky; top: 0; z-index: 10; height: 58px; display: flex; align-items: center; gap: 32px;
+      padding: 0 28px; background: rgba(10,12,15,.86); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .brand-mark { width: 26px; height: 26px; border: 2px solid var(--amber); position: relative; transform: rotate(45deg); }
+    .brand-mark::after { content: ''; position: absolute; inset: 5px; background: var(--amber); }
+    .brand-name { font: 700 21px/1 var(--head); letter-spacing: .16em; }
+    .brand-sub { font: 500 12px/1 var(--mono); color: var(--dim); letter-spacing: .04em; padding-left: 12px; border-left: 1px solid var(--line-2); }
+    .nav { display: flex; gap: 4px; }
+    .nav a {
+      font: 600 15px/1 var(--head); letter-spacing: .1em; text-transform: uppercase; text-decoration: none;
+      color: var(--muted); padding: 9px 14px; border-radius: 6px;
+    }
+    .nav a:hover { color: var(--text); background: var(--panel-2); }
+    .nav a.active { color: var(--text); box-shadow: inset 0 -2px 0 var(--amber); border-radius: 0; }
+    .status-light { margin-left: auto; display: flex; align-items: center; gap: 8px; font: 500 11px/1 var(--mono); letter-spacing: .12em; color: var(--dim); }
+    .status-light i { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+    body[data-live="1"] .status-light { color: var(--amber); }
+    body[data-live="1"] .status-light i { background: var(--amber); animation: pulse 1.4s infinite; }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(242,179,61,.6); } 70% { box-shadow: 0 0 0 7px rgba(242,179,61,0); } 100% { box-shadow: 0 0 0 0 rgba(242,179,61,0); } }
+
+    /* ---------- layout ---------- */
+    main { max-width: 1240px; margin: 0 auto; padding: 32px 28px 64px; }
+    .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 26px; }
+    .eyebrow { font: 500 12px/1 var(--mono); color: var(--amber); letter-spacing: .14em; text-transform: uppercase; margin-bottom: 10px; }
+    h1 { font: 700 44px/1 var(--head); letter-spacing: .03em; text-transform: uppercase; margin: 0; }
+    .lede { color: var(--muted); max-width: 640px; margin: 10px 0 0; }
+    .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .grid { display: grid; gap: 16px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+    .panel-title { font: 600 17px/1 var(--head); letter-spacing: .12em; text-transform: uppercase; margin: 0; }
+    .panel-body { padding: 18px 20px; }
+    .panel-meta { font: 500 12px/1 var(--mono); color: var(--dim); }
+
+    /* ---------- buttons ---------- */
+    .btn {
+      appearance: none; border: 1px solid transparent; border-radius: 7px; cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px;
+      font: 600 15px/1 var(--head); letter-spacing: .1em; text-transform: uppercase;
+      transition: background .15s, border-color .15s, color .15s, transform .05s;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--amber); color: #15110a; }
+    .btn-primary:hover { background: #ffc457; }
+    .btn-ghost { background: transparent; border-color: var(--line-2); color: var(--text); }
+    .btn-ghost:hover { border-color: var(--muted); }
+    .btn-sm { padding: 7px 11px; font-size: 13px; }
+    .btn[disabled], .btn.disabled { opacity: .38; cursor: not-allowed; pointer-events: none; }
+    form.inline { display: inline; margin: 0; }
+
+    /* ---------- messages ---------- */
+    .flash { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border: 1px solid var(--line-2); border-left: 3px solid var(--amber); background: var(--panel); border-radius: 8px; margin-bottom: 20px; }
+    .flash.warning { border-left-color: var(--red); }
+    .flash.success { border-left-color: var(--green); }
+    .flash .tag { font: 600 11px/1 var(--mono); letter-spacing: .12em; color: var(--dim); text-transform: uppercase; }
+
+    /* ---------- data bits ---------- */
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 999px; font: 500 11px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--line-2); color: var(--muted); white-space: nowrap; }
+    .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .9; }
+    .pill.done, .pill.processed { color: var(--green); border-color: rgba(63,207,142,.35); background: var(--green-soft); }
+    .pill.running, .pill.combat, .pill.downloading, .pill.downloaded { color: var(--amber); border-color: rgba(242,179,61,.35); background: var(--amber-soft); }
+    .pill.running::before, .pill.combat::before, .pill.downloading::before { animation: pulse 1.4s infinite; }
+    .pill.queued { color: var(--amber); border-style: dashed; }
+    .pill.retrying, .pill.failed { color: var(--red); border-color: rgba(255,93,85,.35); background: var(--red-soft); }
+    .rank { display: inline-block; min-width: 34px; text-align: center; padding: 1px 6px; border-radius: 4px; font: 600 10px/1.6 var(--mono); letter-spacing: .08em; border: 1px solid var(--line-2); color: var(--muted); vertical-align: middle; }
+    .rank-gen { color: var(--amber); border-color: rgba(242,179,61,.45); }
+    .rank-lt { color: #c7cfdb; border-color: #4a5462; }
+    .rank-sgt { color: #9fb1c8; }
+    .rank-pvt { color: var(--dim); }
+    .bar { height: 6px; border-radius: 3px; background: #1c2229; overflow: hidden; }
+    .bar > span { display: block; height: 100%; border-radius: 3px; background: var(--green); transition: width .4s ease; }
+    .bar.warn > span { background: var(--amber); }
+    .bar.crit > span { background: var(--red); }
+    .bar.amber > span { background: var(--amber); }
+    .blue { color: var(--blue); }
+    .red { color: var(--red); }
+    .team-dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 7px; vertical-align: 1px; }
+    .team-dot.blue { background: var(--blue); }
+    .team-dot.red { background: var(--red); }
+
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--dim); padding: 12px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    td { padding: 10px 14px; border-bottom: 1px solid #1a1f26; vertical-align: middle; }
+    tbody tr:hover td { background: rgba(255,255,255,.015); }
+    tbody tr:last-child td { border-bottom: 0; }
+    .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+    .right { text-align: right; }
+    .empty { padding: 36px 20px; text-align: center; color: var(--muted); }
+    .scroll { max-height: 640px; overflow: auto; }
+    .scroll thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+    @media (max-width: 960px) { .page-head { flex-direction: column; align-items: flex-start; } .brand-sub { display: none; } }
   </style>
+  {% block extra_head %}{% endblock %}
 </head>
-<body>
-<header>
-  <strong>⚔ Django War Simulator</strong>
-  <a href="{% url 'home' %}">Army</a>
-  <a href="{% url 'simulate' %}">Simulate</a>
-  <a href="/admin/">Admin</a>
+<body data-live="{% if live %}1{% else %}0{% endif %}">
+<header class="topbar">
+  <a class="brand" href="{% url 'home' %}">
+    <span class="brand-mark"></span>
+    <span class="brand-name">DEADLOCK</span>
+    <span class="brand-sub">war simulator / hard</span>
+  </a>
+  <nav class="nav">
+    <a href="{% url 'home' %}" class="{% if nav == 'army' %}active{% endif %}">Army</a>
+    <a href="{% url 'simulate' %}" class="{% if nav == 'simulate' %}active{% endif %}">Battlefield</a>
+    <a href="/admin/">Admin</a>
+  </nav>
+  <div class="status-light"><i></i><span data-region="live-label">{% if live %}LIVE{% else %}IDLE{% endif %}</span></div>
 </header>
 <main>
-  {% for message in messages %}<div class="msg">{{ message }}</div>{% endfor %}
+  {% for message in messages %}
+    <div class="flash {{ message.tags }}"><span class="tag">{{ message.tags|default:'info' }}</span><span>{{ message }}</span></div>
+  {% endfor %}
   {% block content %}{% endblock %}
 </main>
+<script>
+  // Live updates: while background work runs, re-fetch this page every 2 s and swap only the
+  // regions marked with data-region, so scroll position and the rest of the page stay put.
+  (function () {
+    var POLL_MS = 2000, polls = 0;
+    function tick() {
+      if (document.body.dataset.live !== '1') return;
+      fetch(window.location.href, { headers: { 'X-Requested-With': 'fetch' } })
+        .then(function (r) { return r.text(); })
+        .then(function (html) {
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          document.querySelectorAll('[data-region]').forEach(function (el) {
+            var fresh = doc.querySelector('[data-region="' + el.dataset.region + '"]');
+            if (fresh) el.replaceWith(fresh);
+          });
+          document.body.dataset.live = doc.body.dataset.live;
+          // ?watch=1 only bridges the gap until the first tasks start; drop it after a few polls.
+          if (++polls >= 5 && window.location.search.indexOf('watch=1') !== -1) {
+            var url = new URL(window.location.href);
+            url.searchParams.delete('watch');
+            window.history.replaceState(null, '', url);
+          }
+        })
+        .catch(function () {})
+        .finally(function () { setTimeout(tick, POLL_MS); });
+    }
+    setTimeout(tick, POLL_MS);
+  })();
+</script>
 </body>
 </html>

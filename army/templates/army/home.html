@@ -1,47 +1,173 @@
 {% extends 'army/base.html' %}
+{% block title %}Army · Deadlock{% endblock %}
+{% block extra_head %}
+<style>
+  .steps { grid-template-columns: repeat(4, 1fr); margin-bottom: 18px; }
+  .step { position: relative; padding: 20px 20px 18px; overflow: hidden; display: flex; flex-direction: column; min-height: 214px; }
+  .step::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--line-2); }
+  .step.done::before { background: var(--green); }
+  .step.error::before { background: var(--red); }
+  .step.active::before {
+    background: repeating-linear-gradient(90deg, var(--amber) 0 18px, rgba(242,179,61,.25) 18px 36px);
+    background-size: 36px 3px; animation: march 0.9s linear infinite;
+  }
+  @keyframes march { to { background-position: 36px 0; } }
+  .step-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .step-no { font: 600 13px/1 var(--mono); color: var(--dim); letter-spacing: .1em; }
+  .step-state { font: 500 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+  .step.done .step-state { color: var(--green); }
+  .step.active .step-state { color: var(--amber); }
+  .step.error .step-state { color: var(--red); }
+  .step h3 { font: 700 24px/1 var(--head); letter-spacing: .06em; text-transform: uppercase; margin: 0 0 6px; }
+  .step p { margin: 0; color: var(--muted); font-size: 13px; }
+  .step-value { margin-top: auto; padding-top: 16px; display: flex; align-items: baseline; gap: 8px; }
+  .step-value b { font: 600 34px/1 var(--mono); font-variant-numeric: tabular-nums; }
+  .step-value span { color: var(--muted); font-size: 13px; }
+  .step-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+  .two { grid-template-columns: 1.15fr .85fr; margin-bottom: 18px; }
+  .batch-row { display: flex; align-items: center; gap: 18px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .batch-row:last-child { border-bottom: 0; }
+  .batch-label { width: 92px; flex: none; }
+  .batch-label b { display: block; font: 600 15px/1.1 var(--head); letter-spacing: .12em; text-transform: uppercase; }
+  .batch-label span { font: 400 11px/1.6 var(--mono); color: var(--dim); }
+  .cells { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+  .cell { width: 38px; height: 38px; border-radius: 6px; display: grid; place-items: center; font: 600 12px/1 var(--mono);
+          border: 1px solid var(--line-2); color: var(--dim); background: var(--panel-2); position: relative; }
+  .cell.processed { color: #0d1a14; background: var(--green); border-color: var(--green); }
+  .cell.downloaded { color: var(--green); border-color: rgba(63,207,142,.5); }
+  .cell.downloading, .cell.queued { color: var(--amber); border-color: rgba(242,179,61,.55); background: var(--amber-soft); animation: blink 1.6s ease-in-out infinite; }
+  .cell.retrying { color: var(--red); border-color: rgba(255,93,85,.6); background: var(--red-soft); animation: blink 1.6s ease-in-out infinite; }
+  .cell.failed { color: #fff; background: var(--red); border-color: var(--red); }
+  .cell.missing, .cell.skipped { opacity: .35; border-style: dashed; background: transparent; }
+  .cell sup { position: absolute; top: -6px; right: -6px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--red); color: #fff; font: 600 9px/16px var(--mono); padding: 0 4px; }
+  @keyframes blink { 50% { opacity: .55; } }
+  .batch-stats { width: 140px; flex: none; text-align: right; font: 400 12px/1.6 var(--mono); color: var(--muted); }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; font: 400 11px/1 var(--mono); color: var(--dim); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid var(--line-2); }
+
+  .intel { display: flex; gap: 16px; align-items: flex-start; }
+  .intel-key { font: 600 18px/1 var(--mono); color: var(--amber); padding: 10px 12px; border: 1px dashed rgba(242,179,61,.5); border-radius: 6px; background: var(--amber-soft); white-space: nowrap; }
+  .ranks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 18px; }
+  .ranks div { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
+  .ranks b { display: block; font: 600 24px/1 var(--mono); margin-top: 8px; }
+  .roster td.name { font-weight: 500; }
+  .roster .bar { width: 120px; display: inline-block; vertical-align: middle; margin-right: 10px; }
+  .keyflag { font: 600 10px/1 var(--mono); color: var(--amber); border: 1px solid rgba(242,179,61,.5); padding: 2px 5px; border-radius: 4px; margin-left: 8px; letter-spacing: .08em; }
+  @media (max-width: 1100px) { .steps { grid-template-columns: repeat(2, 1fr); } .two { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
 {% block content %}
-<div class="stats" style="margin-bottom:16px">
-  <div class="stat"><b>{{ people_count }}</b>people registered</div>
-  <div class="stat"><b>{{ drafted_count }}</b>soldiers drafted</div>
-  <div class="stat"><b>{{ fight_count }}</b>fights downloaded</div>
-  <div class="stat"><b>{{ event_count }}</b>fight events saved</div>
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Operation Deadlock · Mobilisation</div>
+    <h1>Army command</h1>
+    <p class="lede">Register the population, draft it into ranked soldiers and collect fight intel from the war server.
+      Every download runs as its own background task with automatic retries.</p>
+  </div>
 </div>
 
-<div class="card">
-  <h3 style="margin-top:0">Steps</h3>
-  <p>
-    <form method="post" action="{% url 'run_action' 'register' %}">{% csrf_token %}<button>1. Register people</button></form>
-    <form method="post" action="{% url 'run_action' 'draft' %}">{% csrf_token %}<button>2. Draft soldiers</button></form>
-    <form method="post" action="{% url 'run_action' 'fights' %}">{% csrf_token %}<button>3. Download fights</button></form>
-    <a href="{% url 'simulate' %}"><button type="button" class="secondary">4. Go to /simulate</button></a>
-  </p>
-  <p class="muted">Everything runs as Celery background tasks. Each batch is downloaded in its own task, retried
-    automatically if the server times out, and processed as soon as it arrives. This page refreshes itself while work is in progress.</p>
-  {% for p in key_holders %}
-    <p>🔑 <b>{{ p.name }}</b> holds the key <code>{{ p.key }}</code> → next instructions at <code>/{{ p.key }}</code></p>
+<section class="grid steps" data-region="steps">
+  {% for step in steps %}
+  <article class="panel step {{ step.state }}">
+    <div class="step-top">
+      <span class="step-no">{{ step.number }}</span>
+      <span class="step-state">{% if step.state == 'active' %}in progress{% elif step.state == 'done' %}complete{% elif step.state == 'error' %}needs attention{% else %}standby{% endif %}</span>
+    </div>
+    <h3>{{ step.title }}</h3>
+    <p>{{ step.description }}</p>
+    <div class="step-value"><b>{{ step.value }}</b><span>{{ step.unit }}</span></div>
+    <div class="step-actions">
+      {% if step.link %}
+        <a class="btn btn-primary btn-sm{% if step.disabled %} disabled{% endif %}" href="{{ step.link }}">Open battlefield →</a>
+      {% else %}
+        <form class="inline" method="post" action="{% url 'run_action' step.action %}">{% csrf_token %}
+          <button class="btn btn-primary btn-sm" {% if step.busy or step.disabled %}disabled{% endif %}>
+            {% if step.state == 'done' %}Run again{% elif step.busy %}Running…{% else %}Start{% endif %}
+          </button>
+        </form>
+        {% if step.busy %}
+        <form class="inline" method="post" action="{% url 'run_action' step.action %}"
+              onsubmit="return confirm('Restart this download? Only needed if the Celery worker was stopped.');">{% csrf_token %}
+          <input type="hidden" name="force" value="1">
+          <button class="btn btn-ghost btn-sm" title="Only if the worker was restarted and batches are stuck">Restart</button>
+        </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  </article>
   {% endfor %}
-</div>
+</section>
 
-<div class="card">
-  <h3 style="margin-top:0">Download batches</h3>
-  <table>
-    <tr><th>Kind</th><th>Batch</th><th>Status</th><th>Items</th><th>Next batch</th><th>Retries</th><th>Last error</th></tr>
-    {% for b in draft_batches %}{% include 'army/_batch_row.html' %}{% endfor %}
-    {% for b in fight_batches %}{% include 'army/_batch_row.html' %}{% endfor %}
-    {% if not draft_batches and not fight_batches %}<tr><td colspan="7" class="muted">Nothing downloaded yet.</td></tr>{% endif %}
-  </table>
-</div>
+<section class="grid two">
+  <div class="panel" data-region="batches">
+    <div class="panel-head">
+      <h2 class="panel-title">Download batches</h2>
+      <span class="panel-meta">{{ event_count }} fight events stored</span>
+    </div>
+    <div class="panel-body">
+      {% with summary=draft label='Draft' path='/draft/n' %}{% include 'army/_batch_row.html' %}{% endwith %}
+      {% with summary=fight label='Fights' path='/fight/n' %}{% include 'army/_batch_row.html' %}{% endwith %}
+      <div class="legend">
+        <span><i style="background:var(--green);border-color:var(--green)"></i>processed</span>
+        <span><i style="border-color:rgba(242,179,61,.6);background:var(--amber-soft)"></i>downloading</span>
+        <span><i style="border-color:rgba(255,93,85,.6);background:var(--red-soft)"></i>retrying after timeout</span>
+        <span><i style="border-style:dashed"></i>past the last batch</span>
+      </div>
+    </div>
+  </div>
 
-<div class="card">
-  <h3 style="margin-top:0">Soldiers</h3>
-  <table>
-    <tr><th>#</th><th>Name</th><th>Age</th><th>Rank</th><th>Health</th></tr>
-    {% for s in soldiers %}
-      <tr><td>{{ s.id }}</td><td>{{ s.name }}</td><td>{{ s.age }}</td>
-        <td>{{ s.rank|default:"— not drafted" }}</td><td>{{ s.health }}</td></tr>
-    {% empty %}
-      <tr><td colspan="5" class="muted">No people registered yet. Press “1. Register people”.</td></tr>
-    {% endfor %}
-  </table>
-</div>
+  <div class="panel" data-region="intel">
+    <div class="panel-head">
+      <h2 class="panel-title">Intel</h2>
+      <span class="panel-meta">{{ api_base|cut:'https://'|truncatechars:34 }}</span>
+    </div>
+    <div class="panel-body">
+      {% for p in key_holders %}
+        <div class="intel">
+          <span class="intel-key">{{ p.key }}</span>
+          <div>
+            <div><b>{{ p.name }}</b> {% if p.rank %}<span class="rank rank-{{ p.rank_code|lower }}">{{ p.rank_code }}</span>{% endif %}</div>
+            <div class="muted" style="font-size:13px">carries the key to the next orders:
+              <a class="mono" href="{{ api_base }}/{{ p.key }}" target="_blank" rel="noopener">/{{ p.key }}</a></div>
+          </div>
+        </div>
+      {% empty %}
+        <p class="muted" style="margin:0">No intel yet. One of the registered people carries a key to the next orders.</p>
+      {% endfor %}
+      <div class="ranks">
+        {% for rank, n in rank_counts %}
+          <div><span class="rank rank-{% if rank == 'General' %}gen{% elif rank == 'Lieutenant' %}lt{% elif rank == 'Sergeant' %}sgt{% else %}pvt{% endif %}">{{ rank }}</span><b>{{ n }}</b></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="panel roster" data-region="roster">
+  <div class="panel-head">
+    <h2 class="panel-title">Roster</h2>
+    <span class="panel-meta">{{ soldiers|length }} people</span>
+  </div>
+  {% if soldiers %}
+  <div class="scroll">
+    <table>
+      <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Rank</th><th>Health</th></tr></thead>
+      <tbody>
+      {% for s in soldiers %}
+        <tr>
+          <td class="num dim">{{ s.id|stringformat:"03d" }}</td>
+          <td class="name">{{ s.name }}{% if s.key %}<span class="keyflag">KEY</span>{% endif %}</td>
+          <td class="num muted">{{ s.age }}</td>
+          <td>{% if s.rank %}<span class="rank rank-{{ s.rank_code|lower }}">{{ s.rank_code }}</span> <span class="muted" style="font-size:13px">{{ s.rank }}</span>{% else %}<span class="dim">not drafted</span>{% endif %}</td>
+          <td><span class="bar {% if s.health_pct <= 30 %}crit{% elif s.health_pct <= 60 %}warn{% endif %}"><span style="width:{{ s.health_pct }}%"></span></span><span class="num">{{ s.health }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="empty">Nobody registered yet. Start with <b>01 · Register</b>.</div>
+  {% endif %}
+</section>
 {% endblock %}

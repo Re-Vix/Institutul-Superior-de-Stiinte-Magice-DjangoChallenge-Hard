@@ -84,6 +84,8 @@ DATABASES = {
             'timeout': 30,
             'transaction_mode': 'IMMEDIATE',
         },
+        # Tests use a file (not in-memory) database so the concurrency test runs real parallel writers.
+        'TEST': {'NAME': BASE_DIR / 'test_db.sqlite3'},
     }
 }
 

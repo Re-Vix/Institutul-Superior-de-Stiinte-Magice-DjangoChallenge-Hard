@@ -1,52 +1,179 @@
 {% extends 'army/base.html' %}
-{% block title %}Simulate · Django War Simulator{% endblock %}
+{% block title %}Battlefield · Deadlock{% endblock %}
+{% block extra_head %}
+<style>
+  .score { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 24px; padding: 26px 28px 20px; }
+  .side h2 { margin: 0; font: 600 14px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase; }
+  .side .wins { font: 700 76px/0.9 var(--head); margin: 12px 0 6px; font-variant-numeric: tabular-nums; }
+  .side .meta { font: 400 12px/1.6 var(--mono); color: var(--muted); }
+  .side.red { text-align: right; }
+  .side.blue .wins { color: var(--blue); }
+  .side.red .wins { color: var(--red); }
+  .vs { text-align: center; }
+  .vs b { display: block; font: 700 30px/1 var(--head); letter-spacing: .2em; color: var(--dim); }
+  .vs span { font: 400 11px/1.8 var(--mono); color: var(--dim); }
+  .tug { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 0 28px; background: #1c2229; }
+  .tug .b { background: var(--blue); transition: width .5s; }
+  .tug .r { background: var(--red); flex: 1; }
+  .score-foot { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--line); margin-top: 22px; }
+  .score-foot div { padding: 14px 20px; border-right: 1px solid var(--line); }
+  .score-foot div:last-child { border-right: 0; }
+  .score-foot small { display: block; font: 500 11px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-bottom: 8px; }
+  .score-foot b { font: 600 22px/1 var(--mono); font-variant-numeric: tabular-nums; }
+  .overall { padding: 16px 28px 20px; border-top: 1px solid var(--line); }
+  .overall .bar { height: 4px; }
+  .overall-label { display: flex; justify-content: space-between; font: 400 11px/1 var(--mono); color: var(--dim); margin: 0 0 8px; }
+
+  .layout { grid-template-columns: minmax(0, 1fr) 280px; margin-top: 18px; align-items: start; }
+  .tabs { display: flex; gap: 2px; }
+  .tabs a { text-decoration: none; padding: 7px 12px; border-radius: 6px; font: 600 13px/1 var(--head); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .tabs a:hover { color: var(--text); background: var(--panel-2); }
+  .tabs a.on { color: var(--text); background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line-2); }
+  .fights { font-size: 13px; }
+  .fights td, .fights th { padding-left: 11px; padding-right: 11px; }
+  .fights td { white-space: nowrap; }
+  .fights .who { font-weight: 500; }
+  .fights .who .rank { margin-left: 6px; }
+  .fights .progress { width: 104px; }
+  .fights .progress .bar { margin-bottom: 4px; }
+  .fights .progress small { font: 400 11px/1 var(--mono); color: var(--dim); }
+  .dmg { font: 600 13px/1 var(--mono); }
+  .dmg .sep { color: var(--dim); margin: 0 4px; }
+  .fight-id { font: 600 13px/1 var(--mono); color: var(--muted); text-decoration: none; }
+  .fight-id:hover { color: var(--amber); }
+  .side-list { list-style: none; margin: 0; padding: 6px 0; }
+  .side-list li { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 10px 20px; border-bottom: 1px solid #1a1f26; }
+  .side-list li:last-child { border-bottom: 0; }
+  .side-list .bar { grid-column: 1 / -1; }
+  .side-list .n { font: 600 13px/1.4 var(--mono); }
+  .fallen { display: flex; align-items: baseline; gap: 10px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  .fallen b { font: 700 34px/1 var(--head); color: var(--red); }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } .score-foot { grid-template-columns: repeat(2, 1fr); } }
+</style>
+{% endblock %}
 {% block content %}
-<div class="stats" style="margin-bottom:16px">
-  <div class="stat"><b>{{ pending }}</b>pending</div>
-  <div class="stat"><b>{{ running }}</b>running now</div>
-  <div class="stat"><b>{{ done }}</b>finished</div>
-  <div class="stat"><b class="blue">{{ team_stats.blue_wins }}</b>blue wins · {{ team_stats.blue_damage }} dmg</div>
-  <div class="stat"><b class="red">{{ team_stats.red_wins }}</b>red wins · {{ team_stats.red_damage }} dmg</div>
-  <div class="stat"><b>{{ team_stats.draws }}</b>draws</div>
+<div class="page-head">
+  <div>
+    <div class="eyebrow">Operation Deadlock · Live engagement</div>
+    <h1>Battlefield</h1>
+    <p class="lede">Every fight is replayed by its own background task, all in parallel. Each hit lowers the defender's
+      health with an atomic database update, so a soldier fighting on several fronts at once never loses a hit.</p>
+  </div>
+  <div class="actions" data-region="controls">
+    <form class="inline" method="post">{% csrf_token %}
+      <button class="btn btn-primary" name="action" value="start" {% if not counts.pending %}disabled{% endif %}>
+        {% if running %}Running…{% elif counts.done and not counts.pending %}All fights done{% else %}Launch simulation{% endif %}
+      </button>
+    </form>
+    <form class="inline" method="post" onsubmit="return confirm('Reset the battlefield? Every soldier gets the health from the draft back.');">{% csrf_token %}
+      <input type="hidden" name="action" value="reset">
+      {% if running %}<input type="hidden" name="force" value="1">{% endif %}
+      <button class="btn btn-ghost" {% if not counts.total %}disabled{% endif %} title="{% if running %}Force reset (only if the worker was stopped){% else %}Replay from the start{% endif %}">
+        {% if running %}Force reset{% else %}Reset{% endif %}
+      </button>
+    </form>
+  </div>
 </div>
 
-<div class="card">
-  <form method="post">{% csrf_token %}<button name="action" value="start">▶ Simulate all fights</button></form>
-  <form method="post">{% csrf_token %}<button name="action" value="reset" class="secondary">↺ Reset</button></form>
-  <p class="muted">Each fight is replayed by its own background task and all of them run in parallel. Every event lowers the
-    defender's health with an atomic database update, so a soldier who is in several fights at once never loses a hit.
-    The winner is the soldier who dealt more damage in that fight.</p>
-</div>
+<section class="panel" data-region="score">
+  <div class="score">
+    <div class="side blue">
+      <h2 class="blue">Blue army</h2>
+      <div class="wins">{{ counts.blue_wins }}</div>
+      <div class="meta">victories · {{ counts.blue_damage|default:0 }} damage dealt</div>
+    </div>
+    <div class="vs"><b>VS</b><span>{{ counts.draws }} draw{{ counts.draws|pluralize }}</span></div>
+    <div class="side red">
+      <h2 class="red">Red army</h2>
+      <div class="wins">{{ counts.red_wins }}</div>
+      <div class="meta">victories · {{ counts.red_damage|default:0 }} damage dealt</div>
+    </div>
+  </div>
+  <div class="tug"><div class="b" style="width: {{ counts.blue_share }}%"></div><div class="r"></div></div>
+  <div class="score-foot">
+    <div><small>Fights</small><b>{{ counts.total }}</b></div>
+    <div><small>Pending</small><b>{{ counts.pending }}</b></div>
+    <div><small>Queued</small><b>{{ counts.queued }}</b></div>
+    <div><small>In combat</small><b style="color:var(--amber)">{{ counts.combat }}</b></div>
+    <div><small>Finished</small><b style="color:var(--green)">{{ counts.done }}</b></div>
+  </div>
+  <div class="overall">
+    <p class="overall-label"><span>hits replayed</span><span>{{ events.applied }} / {{ events.total }} · {{ events.pct }}%</span></p>
+    <div class="bar amber"><span style="width: {{ events.pct }}%"></span></div>
+  </div>
+</section>
 
-<div class="card">
-  <h3 style="margin-top:0">Fights</h3>
-  <table>
-    <tr><th>Fight</th><th>Blue</th><th>Red</th><th>Progress</th><th>Status</th><th>Blue dmg</th><th>Red dmg</th><th>Winner</th></tr>
-    {% for f in fights %}
-      <tr>
-        <td><a href="{% url 'fight_detail' f.id %}">#{{ f.id }}</a></td>
-        <td class="blue">{{ f.blue_soldier.name }} <span class="muted">({{ f.blue_soldier.rank|default:"?" }})</span></td>
-        <td class="red">{{ f.red_soldier.name }} <span class="muted">({{ f.red_soldier.rank|default:"?" }})</span></td>
-        <td>{{ f.events_applied }}/{{ f.events_total }}</td>
-        <td><span class="badge {{ f.status }}">{{ f.status }}</span></td>
-        <td>{{ f.blue_damage_dealt }}</td><td>{{ f.red_damage_dealt }}</td>
-        <td>{% if f.status == 'done' %}{% if f.winner %}<span class="{% if f.winner_id == f.blue_soldier_id %}blue{% else %}red{% endif %}">{{ f.winner.name }}</span>{% else %}draw{% endif %}{% endif %}</td>
-      </tr>
-    {% empty %}
-      <tr><td colspan="8" class="muted">No fights yet. Download them from the <a href="{% url 'home' %}">Army</a> page.</td></tr>
-    {% endfor %}
-  </table>
-</div>
+<section class="grid layout">
+  <div class="panel" data-region="fights">
+    <div class="panel-head">
+      <nav class="tabs">
+        {% for key, label in filters %}
+          <a href="?status={{ key }}" class="{% if key == current %}on{% endif %}">{{ label }}</a>
+        {% endfor %}
+      </nav>
+      <span class="panel-meta">{{ fights|length }} shown</span>
+    </div>
+    {% if fights %}
+    <div class="scroll">
+      <table class="fights">
+        <thead><tr><th>Fight</th><th>Blue</th><th>Red</th><th>Progress</th><th>Status</th><th class="right">Damage</th><th>Winner</th></tr></thead>
+        <tbody>
+        {% for f in fights %}
+          <tr>
+            <td><a class="fight-id" href="{% url 'fight_detail' f.id %}">#{{ f.id|stringformat:"03d" }}</a></td>
+            <td class="who"><span class="team-dot blue"></span>{{ f.blue_soldier.name }}{% if f.blue_soldier.rank %}<span class="rank rank-{{ f.blue_soldier.rank_code|lower }}">{{ f.blue_soldier.rank_code }}</span>{% endif %}</td>
+            <td class="who"><span class="team-dot red"></span>{{ f.red_soldier.name }}{% if f.red_soldier.rank %}<span class="rank rank-{{ f.red_soldier.rank_code|lower }}">{{ f.red_soldier.rank_code }}</span>{% endif %}</td>
+            <td class="progress">
+              <div class="bar amber"><span style="width: {% widthratio f.events_applied f.events_total 100 %}%"></span></div>
+              <small>{{ f.events_applied }}/{{ f.events_total }} hits</small>
+            </td>
+            <td>
+              {% if f.status == 'running' and f.started_at %}<span class="pill combat">in combat</span>
+              {% elif f.status == 'running' %}<span class="pill queued">queued</span>
+              {% else %}<span class="pill {{ f.status }}">{{ f.get_status_display }}</span>{% endif %}
+            </td>
+            <td class="right dmg">{% if f.status == 'done' %}<span class="blue">{{ f.blue_damage_dealt }}</span><span class="sep">:</span><span class="red">{{ f.red_damage_dealt }}</span>{% else %}<span class="dim">–</span>{% endif %}</td>
+            <td>
+              {% if f.status == 'done' %}
+                {% if f.winner %}<span class="team-dot {% if f.winner_id == f.blue_soldier_id %}blue{% else %}red{% endif %}"></span>{{ f.winner.name }}{% else %}<span class="muted">Draw</span>{% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="empty">{% if counts.total %}No fights in this view.{% else %}No fight intel yet. Download it from <a href="{% url 'home' %}">Army command</a>.{% endif %}</div>
+    {% endif %}
+  </div>
 
-<div class="card">
-  <h3 style="margin-top:0">Soldiers after the fights</h3>
-  <table>
-    <tr><th>#</th><th>Name</th><th>Rank</th><th>Health</th><th></th></tr>
-    {% for s in fighters %}
-      <tr><td>{{ s.id }}</td><td>{{ s.name }}</td><td>{{ s.rank|default:"" }}</td>
-        <td>{{ s.health }} / {{ s.initial_health }}</td>
-        <td><span class="bar"><span style="width: {% widthratio s.health s.initial_health 100 %}%"></span></span></td></tr>
-    {% endfor %}
-  </table>
-</div>
+  <aside class="grid" style="gap:16px" data-region="side">
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Casualties</h2><span class="panel-meta">lowest health</span></div>
+      <div class="fallen"><b>{{ fallen }}</b><span class="muted">soldiers down to 0 health</span></div>
+      <ul class="side-list">
+        {% for s in wounded %}
+          <li>
+            <span>{{ s.name }} {% if s.rank %}<span class="rank rank-{{ s.rank_code|lower }}">{{ s.rank_code }}</span>{% endif %}</span>
+            <span class="n">{{ s.health }}</span>
+            <span class="bar {% if s.health_pct <= 30 %}crit{% elif s.health_pct <= 60 %}warn{% endif %}"><span style="width:{{ s.health_pct }}%"></span></span>
+          </li>
+        {% empty %}
+          <li class="muted">No fighters yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Most victories</h2></div>
+      <ul class="side-list">
+        {% for s in top_winners %}
+          <li><span>{{ s.name }} {% if s.rank %}<span class="rank rank-{{ s.rank_code|lower }}">{{ s.rank_code }}</span>{% endif %}</span><span class="n">{{ s.wins }}</span></li>
+        {% empty %}
+          <li class="muted">No finished fights yet.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </aside>
+</section>
 {% endblock %}
