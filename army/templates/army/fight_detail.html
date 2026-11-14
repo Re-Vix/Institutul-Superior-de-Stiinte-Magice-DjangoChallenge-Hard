@@ -1,0 +1,29 @@
+{% extends 'army/base.html' %}
+{% block title %}Fight #{{ fight.id }} · Django War Simulator{% endblock %}
+{% block content %}
+<div class="card">
+  <h2 style="margin-top:0">Fight #{{ fight.id }}
+    <span class="badge {{ fight.status }}">{{ fight.status }}</span></h2>
+  <p><span class="blue">{{ fight.blue_soldier.name }}</span> ({{ fight.blue_soldier.rank|default:"?" }})
+     vs <span class="red">{{ fight.red_soldier.name }}</span> ({{ fight.red_soldier.rank|default:"?" }})</p>
+  {% if fight.status == 'done' %}
+    <p>Damage dealt: <span class="blue">{{ fight.blue_damage_dealt }}</span> vs <span class="red">{{ fight.red_damage_dealt }}</span> ·
+       Winner: <b>{% if fight.winner %}{{ fight.winner.name }}{% else %}draw{% endif %}</b></p>
+  {% endif %}
+  <p><a href="{% url 'simulate' %}">← all fights</a></p>
+</div>
+<div class="card">
+  <table>
+    <tr><th>Step</th><th>Attacker</th><th>Defender</th><th>Damage</th><th>Defender health after</th></tr>
+    {% for e in events %}
+      <tr>
+        <td>{{ e.step }}</td>
+        <td class="{% if e.attacker_id == fight.blue_soldier_id %}blue{% else %}red{% endif %}">{{ e.attacker.name }}</td>
+        <td class="{% if e.defender_id == fight.blue_soldier_id %}blue{% else %}red{% endif %}">{{ e.defender.name }}</td>
+        <td>{{ e.damage }}</td>
+        <td>{% if e.applied %}{{ e.defender_health_after }}{% else %}<span class="muted">not replayed yet</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,8 @@
+<tr>
+  <td>{{ b.kind }}</td><td>{{ b.number }}</td>
+  <td><span class="badge {{ b.status }}">{{ b.status }}</span></td>
+  <td>{{ b.item_count|default_if_none:"" }}</td>
+  <td>{% if b.is_last %}last{% else %}{{ b.next_batch|default_if_none:"" }}{% endif %}</td>
+  <td>{{ b.attempts }}</td>
+  <td class="muted">{{ b.error|truncatechars:80 }}</td>
+</tr>

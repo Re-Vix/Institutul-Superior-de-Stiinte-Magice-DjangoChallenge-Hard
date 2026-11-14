@@ -1,0 +1,47 @@
+{% extends 'army/base.html' %}
+{% block content %}
+<div class="stats" style="margin-bottom:16px">
+  <div class="stat"><b>{{ people_count }}</b>people registered</div>
+  <div class="stat"><b>{{ drafted_count }}</b>soldiers drafted</div>
+  <div class="stat"><b>{{ fight_count }}</b>fights downloaded</div>
+  <div class="stat"><b>{{ event_count }}</b>fight events saved</div>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Steps</h3>
+  <p>
+    <form method="post" action="{% url 'run_action' 'register' %}">{% csrf_token %}<button>1. Register people</button></form>
+    <form method="post" action="{% url 'run_action' 'draft' %}">{% csrf_token %}<button>2. Draft soldiers</button></form>
+    <form method="post" action="{% url 'run_action' 'fights' %}">{% csrf_token %}<button>3. Download fights</button></form>
+    <a href="{% url 'simulate' %}"><button type="button" class="secondary">4. Go to /simulate</button></a>
+  </p>
+  <p class="muted">Everything runs as Celery background tasks. Each batch is downloaded in its own task, retried
+    automatically if the server times out, and processed as soon as it arrives. This page refreshes itself while work is in progress.</p>
+  {% for p in key_holders %}
+    <p>🔑 <b>{{ p.name }}</b> holds the key <code>{{ p.key }}</code> → next instructions at <code>/{{ p.key }}</code></p>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Download batches</h3>
+  <table>
+    <tr><th>Kind</th><th>Batch</th><th>Status</th><th>Items</th><th>Next batch</th><th>Retries</th><th>Last error</th></tr>
+    {% for b in draft_batches %}{% include 'army/_batch_row.html' %}{% endfor %}
+    {% for b in fight_batches %}{% include 'army/_batch_row.html' %}{% endfor %}
+    {% if not draft_batches and not fight_batches %}<tr><td colspan="7" class="muted">Nothing downloaded yet.</td></tr>{% endif %}
+  </table>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Soldiers</h3>
+  <table>
+    <tr><th>#</th><th>Name</th><th>Age</th><th>Rank</th><th>Health</th></tr>
+    {% for s in soldiers %}
+      <tr><td>{{ s.id }}</td><td>{{ s.name }}</td><td>{{ s.age }}</td>
+        <td>{{ s.rank|default:"— not drafted" }}</td><td>{{ s.health }}</td></tr>
+    {% empty %}
+      <tr><td colspan="5" class="muted">No people registered yet. Press “1. Register people”.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

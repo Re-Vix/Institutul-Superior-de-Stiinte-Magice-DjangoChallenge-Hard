@@ -1,0 +1,52 @@
+{% extends 'army/base.html' %}
+{% block title %}Simulate · Django War Simulator{% endblock %}
+{% block content %}
+<div class="stats" style="margin-bottom:16px">
+  <div class="stat"><b>{{ pending }}</b>pending</div>
+  <div class="stat"><b>{{ running }}</b>running now</div>
+  <div class="stat"><b>{{ done }}</b>finished</div>
+  <div class="stat"><b class="blue">{{ team_stats.blue_wins }}</b>blue wins · {{ team_stats.blue_damage }} dmg</div>
+  <div class="stat"><b class="red">{{ team_stats.red_wins }}</b>red wins · {{ team_stats.red_damage }} dmg</div>
+  <div class="stat"><b>{{ team_stats.draws }}</b>draws</div>
+</div>
+
+<div class="card">
+  <form method="post">{% csrf_token %}<button name="action" value="start">▶ Simulate all fights</button></form>
+  <form method="post">{% csrf_token %}<button name="action" value="reset" class="secondary">↺ Reset</button></form>
+  <p class="muted">Each fight is replayed by its own background task and all of them run in parallel. Every event lowers the
+    defender's health with an atomic database update, so a soldier who is in several fights at once never loses a hit.
+    The winner is the soldier who dealt more damage in that fight.</p>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Fights</h3>
+  <table>
+    <tr><th>Fight</th><th>Blue</th><th>Red</th><th>Progress</th><th>Status</th><th>Blue dmg</th><th>Red dmg</th><th>Winner</th></tr>
+    {% for f in fights %}
+      <tr>
+        <td><a href="{% url 'fight_detail' f.id %}">#{{ f.id }}</a></td>
+        <td class="blue">{{ f.blue_soldier.name }} <span class="muted">({{ f.blue_soldier.rank|default:"?" }})</span></td>
+        <td class="red">{{ f.red_soldier.name }} <span class="muted">({{ f.red_soldier.rank|default:"?" }})</span></td>
+        <td>{{ f.events_applied }}/{{ f.events_total }}</td>
+        <td><span class="badge {{ f.status }}">{{ f.status }}</span></td>
+        <td>{{ f.blue_damage_dealt }}</td><td>{{ f.red_damage_dealt }}</td>
+        <td>{% if f.status == 'done' %}{% if f.winner %}<span class="{% if f.winner_id == f.blue_soldier_id %}blue{% else %}red{% endif %}">{{ f.winner.name }}</span>{% else %}draw{% endif %}{% endif %}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8" class="muted">No fights yet. Download them from the <a href="{% url 'home' %}">Army</a> page.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0">Soldiers after the fights</h3>
+  <table>
+    <tr><th>#</th><th>Name</th><th>Rank</th><th>Health</th><th></th></tr>
+    {% for s in fighters %}
+      <tr><td>{{ s.id }}</td><td>{{ s.name }}</td><td>{{ s.rank|default:"" }}</td>
+        <td>{{ s.health }} / {{ s.initial_health }}</td>
+        <td><span class="bar"><span style="width: {% widthratio s.health s.initial_health 100 %}%"></span></span></td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}
