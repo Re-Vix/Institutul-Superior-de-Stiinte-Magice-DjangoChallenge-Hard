@@ -32,6 +32,26 @@ CodeRun 2026 Django challenge, Hard track. Built on `coderun2026-starter` (Djang
 - `Fight` — blue and red soldier, status, damage dealt by each side, winner.
 - `FightEvent` — fight, step order, attacker, defender, damage, health of the defender after the hit.
 
+## Interface
+
+- **Army** (`/`) — the mobilisation pipeline (register → draft → fight intel → battle), a live grid of every
+  downloaded batch (processed / downloading / retrying, with retry counts), Hellstorm Fireburn's intel and the roster.
+- **Battlefield** (`/simulate`) — scoreboard blue vs red, live progress of every fight (queued / in combat / finished),
+  filters, casualties and top fighters. Launching claims each fight atomically, so a double click never replays a fight twice.
+- **Fight report** (`/simulate/<id>`) — both fighters and the combat log, with the defender's health after every hit.
+
+Pages update live while background work runs (only the changing regions are re-fetched).
+
+## Tests
+
+```
+python manage.py test army
+```
+
+Covers: API errors hidden in a 200 body, retries on 5xx, draft batches, idempotent fight saving and replay,
+health never below zero, a fight claimed only once, reset, and a real concurrency test where 10 threads hit
+the same soldier at the same time without losing a single hit.
+
 ## Run (Windows)
 
 ```
@@ -48,5 +68,5 @@ Second terminal (same venv):
 celery -A coderun2026_starter worker -l info
 ```
 
-Open http://127.0.0.1:8000/ and press the buttons in order (1 → 2 → 3), then go to
-http://127.0.0.1:8000/simulate and press **Simulate all fights**. Pages refresh by themselves while work runs.
+Open http://127.0.0.1:8000/ and start the steps in order (01 Register → 02 Draft → 03 Fight intel), then open the
+Battlefield and press **Launch simulation**. Pages update by themselves while work runs.
