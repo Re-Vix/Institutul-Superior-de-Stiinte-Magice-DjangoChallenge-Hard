@@ -1,0 +1,1 @@
+# Institutul-Superior-de-Stiinte-Magice-DjangoChallenge-Hard
